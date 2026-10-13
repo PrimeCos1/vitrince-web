@@ -1,15 +1,36 @@
 # Vitrince – Hostinger-VPS, Routing über bestehendes Traefik (letsencrypt)
+# Kein eigener Build: "fetch" holt die Website aus GitHub, "web" liefert sie aus.
+# Update = Projekt neu starten (fetch zieht den aktuellen Stand von main).
 services:
+  fetch:
+    image: alpine/git:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        rm -rf /srv/site/* /srv/conf/* /tmp/r &&
+        git clone --depth 1 https://github.com/PrimeCos1/vitrince-web.git /tmp/r &&
+        cp -r /tmp/r/site/. /srv/site/ &&
+        cp /tmp/r/nginx/default.conf /tmp/r/nginx/headers.inc /srv/conf/ &&
+        chmod -R a+rX /srv/site /srv/conf
+    volumes:
+      - site:/srv/site
+      - conf:/srv/conf
+    restart: "no"
+
   web:
-    build:
-      context: https://github.com/PrimeCos1/vitrince-web.git#main
-    image: vitrince-web:latest
+    image: nginxinc/nginx-unprivileged:1.28-alpine
+    depends_on:
+      fetch:
+        condition: service_completed_successfully
     restart: unless-stopped
     read_only: true
     tmpfs:
       - /tmp:size=16m
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    volumes:
+      - site:/usr/share/nginx/html:ro
+      - conf:/etc/nginx/conf.d:ro
     labels:
       traefik.enable: "true"
       # Hauptdomain
@@ -27,3 +48,7 @@ services:
       traefik.http.middlewares.vitrince-canonical.redirectregex.replacement: "https://vitrince.tr/$${1}"
       traefik.http.middlewares.vitrince-canonical.redirectregex.permanent: "true"
       traefik.http.services.vitrince.loadbalancer.server.port: "8080"
+
+volumes:
+  site:
+  conf:
