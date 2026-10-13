@@ -1,0 +1,29 @@
+# Vitrince – Hostinger-VPS, Routing über bestehendes Traefik (letsencrypt)
+services:
+  web:
+    build:
+      context: https://github.com/PrimeCos1/vitrince-web.git#main
+    image: vitrince-web:latest
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    labels:
+      traefik.enable: "true"
+      # Hauptdomain
+      traefik.http.routers.vitrince.rule: "Host(`vitrince.tr`)"
+      traefik.http.routers.vitrince.entrypoints: websecure
+      traefik.http.routers.vitrince.tls.certresolver: letsencrypt
+      traefik.http.routers.vitrince.service: vitrince
+      # www und .com.tr -> 301 auf https://vitrince.tr
+      traefik.http.routers.vitrince-redir.rule: "Host(`www.vitrince.tr`) || Host(`vitrince.com.tr`) || Host(`www.vitrince.com.tr`)"
+      traefik.http.routers.vitrince-redir.entrypoints: websecure
+      traefik.http.routers.vitrince-redir.tls.certresolver: letsencrypt
+      traefik.http.routers.vitrince-redir.middlewares: vitrince-canonical
+      traefik.http.routers.vitrince-redir.service: vitrince
+      traefik.http.middlewares.vitrince-canonical.redirectregex.regex: "^https?://[^/]+/(.*)"
+      traefik.http.middlewares.vitrince-canonical.redirectregex.replacement: "https://vitrince.tr/$${1}"
+      traefik.http.middlewares.vitrince-canonical.redirectregex.permanent: "true"
+      traefik.http.services.vitrince.loadbalancer.server.port: "8080"
